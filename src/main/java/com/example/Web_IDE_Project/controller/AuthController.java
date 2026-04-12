@@ -8,6 +8,8 @@ import com.example.Web_IDE_Project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,7 +34,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody SignupRequest request) {
+    public Map<String, String> login(@RequestBody SignupRequest request) {
         User user = userRepository.findByUserId(request.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("가입되지 않은 아이디입니다."));
 
@@ -40,6 +42,10 @@ public class AuthController {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        return jwtTokenProvider.createToken(user.getUserId());
+        String token = jwtTokenProvider.createToken(user.getUserId());
+
+        Map<String, String> response = new HashMap<>();
+        response.put("accessToken", token);
+        return response;
     }
 }
