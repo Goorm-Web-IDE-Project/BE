@@ -2,6 +2,7 @@ package com.example.Web_IDE_Project.controller;
 
 import com.example.Web_IDE_Project.dto.*; // DTO 패키지 확인 필요
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +19,6 @@ public class FileController {
 
     private final String BASE_PATH = "/home/ubuntu/ide-workspace/";
 
-    // 1. 파일 트리 가져오기
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
         File root = new File(BASE_PATH + userId);
@@ -26,7 +26,6 @@ public class FileController {
         return List.of(buildFileTree(root));
     }
 
-    // 2. 파일 내용 읽기
     @GetMapping("/content")
     public ResponseEntity<String> getFileContent(@RequestParam String filePath) throws IOException {
         Path path = Paths.get(filePath);
@@ -34,7 +33,6 @@ public class FileController {
         return ResponseEntity.ok(Files.readString(path));
     }
 
-    // 3. 파일 저장하기
     @PostMapping("/save")
     public ResponseEntity<String> saveFile(@RequestBody SaveRequest request) throws IOException {
         Path path = Paths.get(request.getFilePath());
@@ -43,7 +41,6 @@ public class FileController {
         return ResponseEntity.ok("저장 완료!");
     }
 
-    // 4. 코드 실행 (핵심!)
     @PostMapping("/execute")
     public ResponseEntity<ExecutionResponse> executeCode(@RequestBody ExecutionRequest request) {
         StringBuilder output = new StringBuilder();
@@ -58,14 +55,12 @@ public class FileController {
         try {
             Process process = Runtime.getRuntime().exec(command);
 
-            // 표준 출력 읽기
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
             }
 
-            // 에러 출력 읽기
             BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
             while ((line = errorReader.readLine()) != null) {
                 output.append("[ERROR] ").append(line).append("\n");
@@ -89,5 +84,25 @@ public class FileController {
                                 .map(this::buildFileTree)
                                 .collect(Collectors.toList()) : null)
                 .build();
+    }
+    @PostMapping("/create")
+    public ResponseEntity<String> createFile(@RequestBody CreateRequest request) throws IOException {
+        Path path = Paths.get(request.getParentPath(), request.getName()).normalize();
+        String normalizedPath = path.toString();
+
+        if (!normalizedPath.contains("ide-workspace")) {
+            System.out.println("보안 위반 의심 경로: " + normalizedPath);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("접근 권한이 없는 경로입니다.");
+        }
+
+        if ("folder".equals(request.getType())) {
+            Files.createDirectories(path);
+        } else {
+            Files.createDirectories(path.getParent());
+            if (!Files.exists(path)) {
+                Files.createFile(path);
+            }
+        }
+        return ResponseEntity.ok("성공적으로 생성되었습니다!");
     }
 }
