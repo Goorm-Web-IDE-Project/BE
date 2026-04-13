@@ -46,6 +46,9 @@ public class AuthController {
 
         Map<String, String> response = new HashMap<>();
         response.put("accessToken", token);
+        response.put("userId", user.getUserId());
+        response.put("name", user.getName());
+
         return response;
     }
 }
