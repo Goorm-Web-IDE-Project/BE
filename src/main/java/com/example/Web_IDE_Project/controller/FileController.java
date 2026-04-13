@@ -2,6 +2,7 @@ package com.example.Web_IDE_Project.controller;
 
 import com.example.Web_IDE_Project.dto.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,14 +31,20 @@ public class FileController {
 
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
-        if (userId == null || userId.trim().isEmpty()) {
-            return Collections.emptyList();
-        }
+        if (userId == null || userId.trim().isEmpty()) return Collections.emptyList();
 
-        File root = new File(BASE_PATH + userId);
+        File root = new File(BASE_PATH);
         if (!root.exists()) root.mkdirs();
 
-        return List.of(buildFileTree(root));
+        FileNodeResponse fullTree = buildFileTree(root);
+
+        if (fullTree.getChildren() != null) {
+            return fullTree.getChildren().stream()
+                    .filter(node -> node.getName().equals(userId))
+                    .collect(Collectors.toList());
+        }
+
+        return Collections.emptyList();
     }
 
     @GetMapping("/content")
@@ -143,10 +150,16 @@ public class FileController {
         try {
             String filePath = request.get("filePath");
             validatePath(filePath);
-            Path path = Paths.get(filePath);
+            Path path = Paths.get(filePath).normalize();
+
+            String normalizedBase = Paths.get(BASE_PATH).normalize().toString().replace("\\", "/");
+            String normalizedPath = path.toString().replace("\\", "/");
+
+            if (normalizedPath.equals(normalizedBase + "/나") || normalizedPath.equals(normalizedBase + "/")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("최상위 유저 폴더('나')는 시스템 보호를 위해 삭제할 수 없습니다.");
+            }
 
             if (Files.isDirectory(path)) {
-                // 폴더 삭제 시 하위 파일부터 역순으로 삭제
                 Files.walk(path)
                         .sorted(Comparator.reverseOrder())
                         .map(Path::toFile)
@@ -154,7 +167,9 @@ public class FileController {
             } else {
                 Files.deleteIfExists(path);
             }
-            return ResponseEntity.ok("삭제 성공");
+            return ResponseEntity.ok("성공적으로 삭제되었습니다.");
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("보안 오류: " + e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("삭제 실패: " + e.getMessage());
         }
