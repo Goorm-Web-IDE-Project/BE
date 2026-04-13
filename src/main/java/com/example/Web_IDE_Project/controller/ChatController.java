@@ -3,6 +3,7 @@ package com.example.Web_IDE_Project.controller;
 import com.example.Web_IDE_Project.dto.ChatMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor; // 필수 import
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Controller;
 
@@ -16,11 +17,16 @@ public class ChatController {
 
     private final SimpMessageSendingOperations messagingTemplate;
 
-    private static final Set<String> userList = Collections.synchronizedSet(new HashSet<>());
+    public static final Set<String> userList = Collections.synchronizedSet(new HashSet<>());
 
     @MessageMapping("/chat/message")
-    public void message(ChatMessage message) {
+    public void message(ChatMessage message, SimpMessageHeaderAccessor headerAccessor) {
+
         if (ChatMessage.MessageType.ENTER.equals(message.getType())) {
+            if (headerAccessor.getSessionAttributes() != null) {
+                headerAccessor.getSessionAttributes().put("username", message.getSender());
+            }
+
             userList.add(message.getSender());
             message.setContent(message.getSender() + "님이 입장하셨습니다.");
         }
