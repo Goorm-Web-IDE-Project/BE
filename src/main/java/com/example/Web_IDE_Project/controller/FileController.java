@@ -31,7 +31,6 @@ public class FileController {
 
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
-        // "나"를 차단하는 로직이 있다면 삭제! userId가 비어있는지만 체크하세요.
         if (userId == null || userId.trim().isEmpty()) {
             return Collections.emptyList();
         }
@@ -49,9 +48,7 @@ public class FileController {
             Path path = Paths.get(filePath);
             if (!Files.exists(path)) return ResponseEntity.notFound().build();
             return ResponseEntity.ok(Files.readString(path));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        } catch (IOException e) {
+        } catch (Exception e) {
             return ResponseEntity.internalServerError().body("파일 읽기 실패");
         }
     }
@@ -64,9 +61,7 @@ public class FileController {
             Files.createDirectories(path.getParent());
             Files.writeString(path, request.getContent());
             return ResponseEntity.ok("저장 완료!");
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        } catch (IOException e) {
+        } catch (Exception e) {
             return ResponseEntity.internalServerError().body("저장 중 오류 발생");
         }
     }
@@ -75,28 +70,38 @@ public class FileController {
     public ResponseEntity<ExecutionResponse> executeCode(@RequestBody ExecutionRequest request) {
         try {
             validatePath(request.getFilePath());
+            File file = new File(request.getFilePath());
+            String parentDir = file.getParent();
+            String fileName = file.getName();
+
             StringBuilder output = new StringBuilder();
-            String command = "";
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.directory(new File(parentDir)); // 파일이 위치한 디렉토리에서 실행
 
+            // Java 실행 시 컴파일(javac) 과정을 추가해야 결과가 나옵니다.
             if ("java".equals(request.getLanguage())) {
-                command = "java " + request.getFilePath();
+                String className = fileName.substring(0, fileName.lastIndexOf("."));
+                // 컴파일 후 실행 명령어를 Bash 체인으로 연결
+                pb.command("bash", "-c", "javac " + fileName + " && java " + className);
             } else if ("python".equals(request.getLanguage())) {
-                command = "python3 " + request.getFilePath();
+                pb.command("python3", fileName);
             }
 
-            Process process = Runtime.getRuntime().exec(command);
+            Process process = pb.start();
 
+            // 표준 출력 읽기
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                reader.lines().forEach(line -> output.append(line).append("\n"));
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append("\n");
             }
+            // 에러 출력 읽기
             try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                errorReader.lines().forEach(line -> output.append("[ERROR] ").append(line).append("\n"));
+                String line;
+                while ((line = errorReader.readLine()) != null) output.append("[ERROR] ").append(line).append("\n");
             }
 
             process.waitFor();
             return ResponseEntity.ok(new ExecutionResponse(output.toString()));
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ExecutionResponse(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(new ExecutionResponse("실행 오류: " + e.getMessage()));
         }
@@ -112,46 +117,37 @@ public class FileController {
                 Files.createDirectories(path);
             } else {
                 if (path.getParent() != null) Files.createDirectories(path.getParent());
-                if (!Files.exists(path)) Files.createFile(path);
+                if (!Files.exists(path)) {
+                    // [템플릿 기능] 파일 생성 시 기본 코드 삽입
+                    String content = "";
+                    if (request.getName().endsWith(".java")) {
+                        String className = request.getName().substring(0, request.getName().lastIndexOf("."));
+                        content = "public class " + className + " {\n" +
+                                "    public static void main(String[] args) {\n" +
+                                "        System.out.println(\"Hello, Java!\");\n" +
+                                "    }\n" +
+                                "}";
+                    } else if (request.getName().endsWith(".py")) {
+                        content = "print(\"Hello, Python!\")";
+                    }
+                    Files.writeString(path, content);
+                }
             }
             return ResponseEntity.ok("성공적으로 생성되었습니다!");
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body("생성 실패");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("생성 실패: " + e.getMessage());
         }
     }
 
-    private FileNodeResponse buildFileTree(File file) {
-        String path = file.getAbsolutePath().replace("\\", "/");
-
-        List<FileNodeResponse> children = null;
-        if (file.isDirectory()) {
-            File[] files = file.listFiles();
-            children = (files == null) ? new ArrayList<>() :
-                    Arrays.stream(files)
-                            .map(this::buildFileTree)
-                            .sorted(Comparator.comparing(FileNodeResponse::getType)
-                                    .thenComparing(FileNodeResponse::getName))
-                            .collect(Collectors.toList());
-        }
-
-        return FileNodeResponse.builder()
-                .name(file.getName())
-                .type(file.isDirectory() ? "folder" : "file")
-                .path(path)
-                .editable(true)
-                .children(children)
-                .build();
-    }
     @PostMapping("/delete")
     public ResponseEntity<String> deleteFile(@RequestBody Map<String, String> request) {
         try {
-            String filePath = request.get( "filePath");
+            String filePath = request.get("filePath");
             validatePath(filePath);
             Path path = Paths.get(filePath);
 
             if (Files.isDirectory(path)) {
+                // 폴더 삭제 시 하위 파일부터 역순으로 삭제
                 Files.walk(path)
                         .sorted(Comparator.reverseOrder())
                         .map(Path::toFile)
@@ -163,5 +159,26 @@ public class FileController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("삭제 실패: " + e.getMessage());
         }
+    }
+
+    private FileNodeResponse buildFileTree(File file) {
+        String path = file.getAbsolutePath().replace("\\", "/");
+        List<FileNodeResponse> children = null;
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            children = (files == null) ? new ArrayList<>() :
+                    Arrays.stream(files)
+                            .map(this::buildFileTree)
+                            .sorted(Comparator.comparing(FileNodeResponse::getType)
+                                    .thenComparing(FileNodeResponse::getName))
+                            .collect(Collectors.toList());
+        }
+        return FileNodeResponse.builder()
+                .name(file.getName())
+                .type(file.isDirectory() ? "folder" : "file")
+                .path(path)
+                .editable(true)
+                .children(children)
+                .build();
     }
 }
