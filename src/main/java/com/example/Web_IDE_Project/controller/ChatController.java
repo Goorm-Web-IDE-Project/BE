@@ -1,9 +1,7 @@
 package com.example.Web_IDE_Project.controller;
 
 import com.example.Web_IDE_Project.dto.ChatMessage;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Controller;
@@ -14,8 +12,6 @@ import java.util.Set;
 
 @Controller
 @RequiredArgsConstructor
-@Getter
-@Setter
 public class ChatController {
 
     private final SimpMessageSendingOperations messagingTemplate;
@@ -27,6 +23,11 @@ public class ChatController {
         if (ChatMessage.MessageType.ENTER.equals(message.getType())) {
             userList.add(message.getSender());
             message.setContent(message.getSender() + "님이 입장하셨습니다.");
+        }
+
+        else if (ChatMessage.MessageType.LEAVE.equals(message.getType())) {
+            userList.remove(message.getSender());
+            message.setContent(message.getSender() + "님이 퇴장하셨습니다.");
         }
 
         message.setUserList(new HashSet<>(userList));
