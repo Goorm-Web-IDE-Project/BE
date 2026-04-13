@@ -32,6 +32,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/files/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/ws-ide/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // JWT 필터는 유지하되, permitAll 경로에서는 인증 없이 통과됩니다.
