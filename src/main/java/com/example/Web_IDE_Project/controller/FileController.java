@@ -164,10 +164,12 @@ public class FileController {
     private FileNodeResponse buildFileTree(File file) {
         String path = file.getAbsolutePath().replace("\\", "/");
         List<FileNodeResponse> children = null;
+
         if (file.isDirectory()) {
             File[] files = file.listFiles();
             children = (files == null) ? new ArrayList<>() :
                     Arrays.stream(files)
+                            .filter(f -> !f.getName().endsWith(".class"))
                             .map(this::buildFileTree)
                             .sorted(Comparator.comparing(FileNodeResponse::getType)
                                     .thenComparing(FileNodeResponse::getName))
