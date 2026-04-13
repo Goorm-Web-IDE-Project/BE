@@ -19,30 +19,32 @@ public class FileController {
 
     private final String BASE_PATH = "/home/ubuntu/ide-workspace/";
 
-    // 공통 보안 체크 메서드
+    // 공통 보안 체크 및 경로 정규화 메서드
     private void validatePath(String filePath) {
-        Path path = Paths.get(filePath).normalize();
-        if (!path.toString().startsWith(BASE_PATH)) {
-            throw new SecurityException("접근 권한이 없는 경로입니다: " + filePath);
+        String normalized = Paths.get(filePath).normalize().toString().replace("\\", "/");
+        String base = Paths.get(BASE_PATH).normalize().toString().replace("\\", "/");
+
+        if (!normalized.startsWith(base)) {
+            throw new SecurityException("접근 권한이 없는 경로입니다: " + normalized);
         }
     }
 
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
-        // userId가 비어있거나 "나"인 경우 방어 로직
         if (userId == null || userId.trim().isEmpty() || "나".equals(userId)) {
             return Collections.emptyList();
         }
 
         File root = new File(BASE_PATH + userId);
         if (!root.exists()) root.mkdirs();
+
         return List.of(buildFileTree(root));
     }
 
     @GetMapping("/content")
     public ResponseEntity<String> getFileContent(@RequestParam String filePath) {
         try {
-            validatePath(filePath); // 보안 체크
+            validatePath(filePath);
             Path path = Paths.get(filePath);
             if (!Files.exists(path)) return ResponseEntity.notFound().build();
             return ResponseEntity.ok(Files.readString(path));
@@ -56,7 +58,7 @@ public class FileController {
     @PostMapping("/save")
     public ResponseEntity<String> saveFile(@RequestBody SaveRequest request) {
         try {
-            validatePath(request.getFilePath()); // 보안 체크
+            validatePath(request.getFilePath());
             Path path = Paths.get(request.getFilePath());
             Files.createDirectories(path.getParent());
             Files.writeString(path, request.getContent());
@@ -71,11 +73,10 @@ public class FileController {
     @PostMapping("/execute")
     public ResponseEntity<ExecutionResponse> executeCode(@RequestBody ExecutionRequest request) {
         try {
-            validatePath(request.getFilePath()); // 보안 체크
+            validatePath(request.getFilePath());
             StringBuilder output = new StringBuilder();
             String command = "";
 
-            // 실행 시 절대 경로를 확실히 사용
             if ("java".equals(request.getLanguage())) {
                 command = "java " + request.getFilePath();
             } else if ("python".equals(request.getLanguage())) {
@@ -84,12 +85,9 @@ public class FileController {
 
             Process process = Runtime.getRuntime().exec(command);
 
-            // 표준 출력 읽기
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 reader.lines().forEach(line -> output.append(line).append("\n"));
             }
-
-            // 에러 출력 읽기
             try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
                 errorReader.lines().forEach(line -> output.append("[ERROR] ").append(line).append("\n"));
             }
@@ -107,15 +105,13 @@ public class FileController {
     public ResponseEntity<String> createFile(@RequestBody CreateRequest request) {
         try {
             Path path = Paths.get(request.getParentPath(), request.getName()).normalize();
-            validatePath(path.toString()); // 보안 체크
+            validatePath(path.toString());
 
             if ("folder".equals(request.getType())) {
                 Files.createDirectories(path);
             } else {
-                Files.createDirectories(path.getParent());
-                if (!Files.exists(path)) {
-                    Files.createFile(path);
-                }
+                if (path.getParent() != null) Files.createDirectories(path.getParent());
+                if (!Files.exists(path)) Files.createFile(path);
             }
             return ResponseEntity.ok("성공적으로 생성되었습니다!");
         } catch (SecurityException e) {
@@ -126,17 +122,25 @@ public class FileController {
     }
 
     private FileNodeResponse buildFileTree(File file) {
+        String path = file.getAbsolutePath().replace("\\", "/");
+
+        List<FileNodeResponse> children = null;
+        if (file.isDirectory()) {
+            File[] files = file.listFiles();
+            children = (files == null) ? new ArrayList<>() :
+                    Arrays.stream(files)
+                            .map(this::buildFileTree)
+                            .sorted(Comparator.comparing(FileNodeResponse::getType)
+                                    .thenComparing(FileNodeResponse::getName))
+                            .collect(Collectors.toList());
+        }
+
         return FileNodeResponse.builder()
                 .name(file.getName())
                 .type(file.isDirectory() ? "folder" : "file")
-                .path(file.getAbsolutePath())
+                .path(path)
                 .editable(true)
-                .children(file.isDirectory() ?
-                        Optional.ofNullable(file.listFiles())
-                                .map(Arrays::stream)
-                                .orElse(java.util.stream.Stream.empty())
-                                .map(this::buildFileTree)
-                                .collect(Collectors.toList()) : null)
+                .children(children)
                 .build();
     }
 }
