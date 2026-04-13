@@ -1,6 +1,7 @@
 package com.example.Web_IDE_Project.dto;
 
 import lombok.*;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -13,6 +14,8 @@ public class ChatMessage {
     }
 
     private MessageType type;
+    private String roomId;
     private String content;
     private String sender;
+    private Set<String> userList;
 }
