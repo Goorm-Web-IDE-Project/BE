@@ -31,7 +31,8 @@ public class FileController {
 
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
-        if (userId == null || userId.trim().isEmpty() || "나".equals(userId)) {
+        // "나"를 차단하는 로직이 있다면 삭제! userId가 비어있는지만 체크하세요.
+        if (userId == null || userId.trim().isEmpty()) {
             return Collections.emptyList();
         }
 
