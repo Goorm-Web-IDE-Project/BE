@@ -144,4 +144,24 @@ public class FileController {
                 .children(children)
                 .build();
     }
+    @PostMapping("/delete")
+    public ResponseEntity<String> deleteFile(@RequestBody Map<String, String> request) {
+        try {
+            String filePath = request.get( "filePath");
+            validatePath(filePath);
+            Path path = Paths.get(filePath);
+
+            if (Files.isDirectory(path)) {
+                Files.walk(path)
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            } else {
+                Files.deleteIfExists(path);
+            }
+            return ResponseEntity.ok("삭제 성공");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("삭제 실패: " + e.getMessage());
+        }
+    }
 }
