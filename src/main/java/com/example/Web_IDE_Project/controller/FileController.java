@@ -31,20 +31,11 @@ public class FileController {
 
     @GetMapping("/tree")
     public List<FileNodeResponse> getFileTree(@RequestParam String userId) {
-        if (userId == null || userId.trim().isEmpty()) return Collections.emptyList();
-
         File root = new File(BASE_PATH);
         if (!root.exists()) root.mkdirs();
 
         FileNodeResponse fullTree = buildFileTree(root);
-
-        if (fullTree.getChildren() != null) {
-            return fullTree.getChildren().stream()
-                    .filter(node -> node.getName().equals(userId))
-                    .collect(Collectors.toList());
-        }
-
-        return Collections.emptyList();
+        return fullTree.getChildren() != null ? fullTree.getChildren() : Collections.emptyList();
     }
 
     @GetMapping("/content")
@@ -152,24 +143,20 @@ public class FileController {
             validatePath(filePath);
             Path path = Paths.get(filePath).normalize();
 
+            // [중요] 루트 경로(/home/ubuntu/ide-workspace/) 그 자체만 아니면 다 삭제 허용
             String normalizedBase = Paths.get(BASE_PATH).normalize().toString().replace("\\", "/");
             String normalizedPath = path.toString().replace("\\", "/");
 
-            if (normalizedPath.equals(normalizedBase + "/나") || normalizedPath.equals(normalizedBase + "/")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("최상위 유저 폴더('나')는 시스템 보호를 위해 삭제할 수 없습니다.");
+            if (normalizedPath.equals(normalizedBase)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("전체 작업 영역 루트는 삭제할 수 없습니다.");
             }
 
             if (Files.isDirectory(path)) {
-                Files.walk(path)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)
-                        .forEach(File::delete);
+                Files.walk(path).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
             } else {
                 Files.deleteIfExists(path);
             }
-            return ResponseEntity.ok("성공적으로 삭제되었습니다.");
-        } catch (SecurityException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("보안 오류: " + e.getMessage());
+            return ResponseEntity.ok("삭제 성공");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("삭제 실패: " + e.getMessage());
         }
