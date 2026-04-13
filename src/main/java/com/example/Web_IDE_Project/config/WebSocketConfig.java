@@ -19,7 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-ide")
-                .setAllowedOrigins("http://localhost:3000", "http://3.39.191.82")
+                .setAllowedOriginPatterns("*")
                 .withSockJS();
     }
 }
