@@ -21,7 +21,6 @@ public class ChatController {
 
     @MessageMapping("/chat/message")
     public void message(ChatMessage message, SimpMessageHeaderAccessor headerAccessor) {
-
         if (ChatMessage.MessageType.ENTER.equals(message.getType())) {
             if (headerAccessor.getSessionAttributes() != null) {
                 headerAccessor.getSessionAttributes().put("username", message.getSender());

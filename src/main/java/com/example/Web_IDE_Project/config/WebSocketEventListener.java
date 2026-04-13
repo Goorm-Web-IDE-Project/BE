@@ -1,6 +1,6 @@
 package com.example.Web_IDE_Project.config;
 
-import com.example.Web_IDE_Project.controller.ChatController; // ChatController 임포트 확인
+import com.example.Web_IDE_Project.controller.ChatController;
 import com.example.Web_IDE_Project.dto.ChatMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.util.HashSet;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -23,21 +24,25 @@ public class WebSocketEventListener {
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
-        String username = (String) headerAccessor.getSessionAttributes().get("username");
+        Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
 
-        if (username != null) {
-            log.info("사용자 연결 종료: {}", username);
+        if (sessionAttributes != null) {
+            String username = (String) sessionAttributes.get("username");
 
-            ChatController.userList.remove(username);
+            if (username != null) {
+                log.info("사용자 연결 종료 감지: {}", username);
 
-            ChatMessage chatMessage = ChatMessage.builder()
-                    .type(ChatMessage.MessageType.LEAVE)
-                    .sender(username)
-                    .content(username + "님이 퇴장하셨습니다.")
-                    .userList(new HashSet<>(ChatController.userList)) // 숫 동기화를 위해 필수!
-                    .build();
+                ChatController.userList.remove(username);
 
-            messagingTemplate.convertAndSend("/sub/chat/room/global", chatMessage);
+                ChatMessage chatMessage = ChatMessage.builder()
+                        .type(ChatMessage.MessageType.LEAVE)
+                        .sender(username)
+                        .content(username + "님이 퇴장하셨습니다.")
+                        .userList(new HashSet<>(ChatController.userList))
+                        .build();
+
+                messagingTemplate.convertAndSend("/sub/chat/room/global", chatMessage);
+            }
         }
     }
 }
