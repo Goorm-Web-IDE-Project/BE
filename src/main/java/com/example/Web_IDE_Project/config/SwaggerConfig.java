@@ -13,7 +13,7 @@ public class SwaggerConfig {
 
     @Bean
     public OpenAPI openAPI() {
-        String securityJwtName = "JWT_Auth"; // 인증 설정 이름
+        String securityJwtName = "JWT_Auth";
         SecurityRequirement securityRequirement = new SecurityRequirement().addList(securityJwtName);
         Components components = new Components().addSecuritySchemes(securityJwtName, new SecurityScheme()
                 .name(securityJwtName)
