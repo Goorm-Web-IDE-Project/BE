@@ -35,7 +35,6 @@ public class SecurityConfig {
                         .requestMatchers("/ws-ide/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                // JWT 필터는 유지하되, permitAll 경로에서는 인증 없이 통과됩니다.
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable);
@@ -46,8 +45,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "https://web-ide-sigma.vercel.app",
+                "https://web-6fdw1biwo-bys0212s-projects.vercel.app"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
